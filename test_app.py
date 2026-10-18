@@ -15,10 +15,12 @@ from quality import triage, summarize_matches, build_report
 
 ROOT = Path(__file__).resolve().parent
 
-def run_app(csv_text=None):
+def run_app(csv_text=None, *, quick_brand=None, quick_part=None):
     st = MagicMock()
     st.expander.return_value = nullcontext()
     st.slider.return_value = 180
+    if quick_brand is not None and quick_part is not None:
+        st.text_input.side_effect = [quick_brand, quick_part]
     st.file_uploader.side_effect = [io.StringIO(csv_text) if csv_text is not None else None, None]
     st.multiselect.side_effect = lambda label, choices, default: default
     with patch.dict("sys.modules", {"streamlit": st}):
@@ -223,6 +225,21 @@ class PartWatchTests(unittest.TestCase):
         labels = [x.args[0] for x in st.download_button.call_args_list]
         self.assertIn("Download provenance and freshness report", labels)
         self.assertIn("Download review priority queue", labels)
+
+    def test_quick_lookup_known_demo_and_unknown(self):
+        st = run_app(quick_brand=" democo ", quick_part="demo-plc-100")
+        matched = [call.args[0] for call in st.dataframe.call_args_list
+                   if "status" in call.args[0].columns]
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0].iloc[0]["status"], "Discontinued (demo)")
+        other = run_app(quick_brand="OTHER", quick_part="NOT-FOUND")
+        matched_unknown = [call.args[0] for call in other.dataframe.call_args_list
+                           if "status" in call.args[0].columns]
+        self.assertEqual(matched_unknown[0].iloc[0]["status"], "Unknown / Not verified")
+
+    def test_quick_lookup_limits_size(self):
+        st = run_app(quick_brand="X" * 101, quick_part="ABC")
+        self.assertTrue(any("too long" in call.args[0] for call in st.error.call_args_list))
 
     def test_app_no_upload(self):
         st = run_app()
