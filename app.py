@@ -1,7 +1,7 @@
 """PartWatch V0.2: provenance-aware lifecycle CSV checker."""
 import pandas as pd
 import streamlit as st
-from lifecycle import load_records, match_parts
+from lifecycle import load_records, match_parts, compare_snapshots, SNAPSHOT_COLUMNS
 
 st.set_page_config(page_title="PartWatch | Lifecycle Checker", page_icon="🔎", layout="wide")
 st.title("PartWatch")
@@ -31,6 +31,21 @@ if upload is not None:
         st.download_button("Download results CSV", filtered.to_csv(index=False).encode("utf-8-sig"), "partwatch_results.csv", "text/csv")
     except (ValueError, pd.errors.ParserError, UnicodeDecodeError, pd.errors.EmptyDataError) as exc:
         st.error(f"Could not process CSV: {exc}")
+
+with st.expander("Compare two lifecycle snapshots (manual, not live monitoring)", expanded=False):
+    st.caption("This is a file-to-file comparison. Removed records do not prove discontinuation. Demo and unverified differences are not confirmed manufacturer changes.")
+    current_snapshot = records[SNAPSHOT_COLUMNS]
+    st.download_button("Download current catalog snapshot", current_snapshot.to_csv(index=False).encode("utf-8-sig"), "partwatch_catalog_snapshot.csv", "text/csv")
+    previous_upload = st.file_uploader("Upload a previous catalog snapshot CSV", type=["csv"], key="previous_snapshot")
+    if previous_upload is not None:
+        try:
+            previous = pd.read_csv(previous_upload, dtype=str, keep_default_na=False)
+            changes = compare_snapshots(previous, current_snapshot)
+            st.metric("Differences to review", int((changes["change"] != "Unchanged").sum()))
+            st.dataframe(changes, use_container_width=True, hide_index=True)
+            st.download_button("Download snapshot comparison CSV", changes.to_csv(index=False).encode("utf-8-sig"), "partwatch_snapshot_comparison.csv", "text/csv")
+        except (ValueError, pd.errors.ParserError, UnicodeDecodeError, pd.errors.EmptyDataError) as exc:
+            st.error(f"Could not compare snapshots: {exc}")
 
 st.divider()
 st.caption("Demo statuses are synthetic. A source URL alone is not verification; production records require permission to use data and documented review. No automatic crawling or monitoring is performed.")
