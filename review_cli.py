@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 import pandas as pd
 from lifecycle import load_records
-from review import AUDIT_COLUMNS, approve_review
+from review import AUDIT_COLUMNS, approve_review, validate_publication
 
 def main():
     parser = argparse.ArgumentParser(description="Approve ONE manually checked lifecycle proposal locally")
@@ -26,6 +26,7 @@ def main():
     updated, updated_log = approve_review(
         records, log, proposal, args.reviewer_id,
         source_reviewed=True, rights_checked=True)
+    validate_publication(updated, updated_log)
     # Validate data before modifying files; require the operator to review both diffs before commit.
     updated.to_csv(catalog, index=False)
     updated_log[AUDIT_COLUMNS].to_csv(audit_path, index=False)
