@@ -98,7 +98,7 @@ class PartWatchTests(unittest.TestCase):
         after = before.copy()
         after.loc[0, "status"] = "Changed demo lifecycle"
         result = compare_snapshots(before, after)
-        self.assertEqual(result.loc[0, "change"], "Status differs (demo / unverified)")
+        self.assertEqual(result.loc[result["part_number"] == "DEMO-PLC-100", "change"].iloc[0], "Status differs (demo / unverified)")
 
     def test_snapshot_missing_row_not_discontinued(self):
         before = self.records[SNAPSHOT_COLUMNS].copy()
@@ -120,7 +120,7 @@ class PartWatchTests(unittest.TestCase):
         before.loc[0, ["plm_code", "verification_status"]] = ["PM300", "verified"]
         after.loc[0, ["plm_code", "verification_status"]] = ["PM400", "verified"]
         result = compare_snapshots(before, after)
-        self.assertEqual(result.loc[0, "change"], "Verified-record status differs (review evidence)")
+        self.assertEqual(result.loc[result["part_number"] == "DEMO-PLC-100", "change"].iloc[0], "Verified-record status differs (review evidence)")
 
     def test_snapshot_ui_download_and_empty_compare_upload(self):
         st = run_app()
