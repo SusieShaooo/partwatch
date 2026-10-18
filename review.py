@@ -94,3 +94,24 @@ def approve_review(records, audit, proposal, reviewer_id, *, source_reviewed=Fal
     }
     updated_audit = pd.concat([audit[AUDIT_COLUMNS], pd.DataFrame([event])], ignore_index=True)
     return updated, updated_audit
+
+def validate_publication(records, audit):
+    """Reject published verified records without a corresponding matching audit event."""
+    if not set(AUDIT_COLUMNS).issubset(audit.columns):
+        raise ValueError("Missing review audit columns")
+    for row in records.itertuples(index=False):
+        if row.verification_status != "verified":
+            continue
+        events = audit.loc[
+            (audit["brand"] == row.brand) &
+            (audit["part_number"] == row.part_number) &
+            (audit["new_plm_code"] == row.plm_code) &
+            (audit["new_status"] == row.status) &
+            (audit["source_url"] == row.source_url) &
+            (audit["verified_at"] == row.verified_at)
+        ]
+        if events.empty:
+            raise ValueError("Verified record missing a matching review audit event: " + row.part_number)
+        if not events["rights_basis"].isin(RIGHTS_BASIS).any():
+            raise ValueError("Verified record missing acceptable rights basis: " + row.part_number)
+    return True
