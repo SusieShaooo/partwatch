@@ -1,4 +1,4 @@
-# PartWatch V0.2
+# PartWatch V0.3
 
 Public prototype for industrial spare-part lifecycle lookups. Hosted demo: https://spareparts-lifecycle-demo.streamlit.app/
 
@@ -11,6 +11,8 @@ Public prototype for industrial spare-part lifecycle lookups. Hosted demo: https
 - Evidence URL column rendered as links when a legitimate, reviewed record is added
 - Explicit distinction between demo, verified, and unverified statuses
 - Download catalog snapshot; upload a previous catalog snapshot to inspect changes and export the comparison
+- Download read-only manual review worksheets for unmatched parts
+- Offline operator-gated review and audit log; no public write endpoint
 
 ## Data schema
 `lifecycle_records.csv` fields:
@@ -31,6 +33,29 @@ A record marked `verified` must have a source URL, review date, and non-demo, no
 ## Manual snapshot comparison
 
 Download the current catalog snapshot from the Streamlit page, then upload an older snapshot with the same columns: `brand,part_number,plm_code,status,verified_at,verification_status`. The tool compares by normalized brand + part number and labels rows as added, removed, unchanged or different. **Removed from snapshot does not mean discontinued.** Demo/unverified changes are never labeled manufacturer-confirmed. Even a difference between two verified records is a candidate for human evidence review, not an automated official alert. No file storage, scheduling, or background crawling is performed.
+
+## V0.3 human verification workflow
+
+**Public interface is read-only.** Users can download a review worksheet containing unknown uploaded models; no upload, login, or action on the public app can label a record verified. Do not submit sensitive inventory or reviewer personal information to the public repository.
+
+Only repository maintainers who have actually reviewed a manufacturer's official product page may use the **local CLI**. Do not automate access to manufacturer sites, copy copyrighted page text, or imply a page's public availability grants redistribution rights.
+
+1. Download a worksheet in the public UI or create a one-row CSV with columns:
+   `brand,part_number,plm_code,status,effective_date,source_url,verified_at,evidence_note,rights_basis`
+2. Confirm the exact manufacturer and part identifier, geographic/product variant, PLM status, any effective date, the source's context, and usage rights. Write a *paraphrased* evidence note of at least 20 characters. Use actual review date in YYYY-MM-DD.
+3. Choose `rights_basis` of `official_link_and_factual_summary` only when linking and stating independently confirmed facts is appropriate; use `explicit_permission` only with confirmed permission. These are human declarations, **not** automated legal determinations.
+4. Run **locally** from the repo root:
+
+```bash
+python review_cli.py --proposal reviewed_one_row.csv --reviewer-id reviewer-01 \
+  --confirm-source-reviewed --confirm-rights-checked
+python -m unittest discover -v
+```
+
+5. Inspect changes to **both** `lifecycle_records.csv` and `review_audit.csv`. Commit both through normal GitHub review. Only after merging can a verified record appear on the public site. Use a non-identifying reviewer pseudonym: the audit CSV is public.
+6. GitHub CI verifies that every published `verified` record has a corresponding audit event. Review and evidence quality are still human responsibilities; URLs and checkboxes alone cannot establish authenticity.
+
+New records are **not** added by downloading a worksheet; that worksheet is only a draft for the operator's one-row proposal. Demo records cannot be approved. No production data is bundled in this repo. The review CLI operates on local CSVs only, not on Streamlit server state. It does not query websites or send emails.
 
 ## Run locally
 
