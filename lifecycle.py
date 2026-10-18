@@ -55,3 +55,45 @@ def match_parts(incoming, records):
     for col, default in defaults.items():
         result[col] = result[col].fillna(default)
     return result[OUTPUT_COLUMNS]
+
+SNAPSHOT_COLUMNS = ["brand", "part_number", "plm_code", "status", "verified_at", "verification_status"]
+
+def compare_snapshots(previous, current):
+    """Compare two explicitly supplied catalog snapshots; never imply live monitoring."""
+    for label, frame in (("Previous", previous), ("Current", current)):
+        missing = set(SNAPSHOT_COLUMNS) - set(frame.columns)
+        if missing:
+            raise ValueError(label + " snapshot missing columns: " + ", ".join(sorted(missing)))
+        if len(frame) > 1000:
+            raise ValueError(label + " snapshot exceeds 1,000 rows")
+    def prepare(frame, label):
+        result = frame[SNAPSHOT_COLUMNS].copy().fillna("")
+        result["brand"] = result["brand"].map(clean)
+        result["part_number"] = result["part_number"].map(clean)
+        result["plm_code"] = result["plm_code"].map(clean)
+        result["verification_status"] = result["verification_status"].str.strip().str.lower()
+        if result.duplicated(["brand", "part_number"]).any():
+            raise ValueError(label + " snapshot contains duplicate part keys")
+        if not result["verification_status"].isin(VALID_VERIFICATION).all():
+            raise ValueError(label + " snapshot has invalid verification status")
+        if not result["plm_code"].isin(VALID_CODES).all():
+            raise ValueError(label + " snapshot has invalid PLM code")
+        return result
+    before = prepare(previous, "Previous")
+    after = prepare(current, "Current")
+    diff = before.merge(after, on=["brand", "part_number"], how="outer",
+                        suffixes=("_before", "_after"), indicator=True, validate="one_to_one")
+    def label(row):
+        if row["_merge"] == "left_only":
+            return "Removed from snapshot (not evidence of discontinuation)"
+        if row["_merge"] == "right_only":
+            return "Added to snapshot"
+        changed = (row["plm_code_before"] != row["plm_code_after"]
+                   or row["status_before"] != row["status_after"])
+        if not changed:
+            return "Unchanged"
+        if row["verification_status_before"] == "verified" and row["verification_status_after"] == "verified":
+            return "Verified-record status differs (review evidence)"
+        return "Status differs (demo / unverified)"
+    diff["change"] = diff.apply(label, axis=1)
+    return diff.drop(columns=["_merge"]).fillna("")
