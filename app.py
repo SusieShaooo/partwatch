@@ -1,13 +1,14 @@
-"""PartWatch V0.4: provenance, freshness, and privacy-safe read-only reports."""
+"""PartWatch V0.5: human-verified catalog and read-only pilot preparation."""
 import pandas as pd
 import streamlit as st
 from lifecycle import load_records, match_parts, compare_snapshots, SNAPSHOT_COLUMNS
 from review import review_queue, AUDIT_COLUMNS, validate_publication
 from quality import triage, summarize_matches, build_report
+from pilot import load_candidates, blank_feedback
 
 st.set_page_config(page_title="PartWatch | Lifecycle Checker", page_icon="🔎", layout="wide")
 st.title("PartWatch")
-st.caption("Industrial parts lifecycle intelligence · V0.4")
+st.caption("Industrial parts lifecycle intelligence · V0.5")
 st.info("Current catalog contains DEMO data only. No manufacturer records or live lifecycle status are included. Unknown means not verified, NOT active.")
 st.warning("Public prototype: do not upload confidential customer or inventory data. Files are processed on the hosting server.")
 st.markdown("Lifecycle terminology reference: [Siemens official documentation](https://support.industry.siemens.com/cs/attachments/109983787/109983787_ProductLifeCycle_SINEC_NMS_DOC_V10_en.pdf). This is a general reference, not evidence for demo records.")
@@ -96,6 +97,31 @@ with st.expander("Review workflow and evidence checklist (read-only)", expanded=
     4. Use the local `review_cli.py` with both confirmations, then inspect and commit the catalog **and** audit log changes through an approved repository review.
     This public site cannot change verified records, and a link alone is not proof.
     """)
+
+with st.expander("V0.5: Real-part evidence leads (NOT verified)", expanded=False):
+    st.warning("These Siemens references are research leads from historical indexed pages, not live checks, authorized catalog records, or usable customer lifecycle answers. Human re-verification and rights review are required.")
+    candidates = load_candidates()
+    st.metric("Evidence leads awaiting review", len(candidates))
+    st.dataframe(candidates, use_container_width=True, hide_index=True,
+                 column_config={"source_url": st.column_config.LinkColumn("Manufacturer page to review")})
+    st.download_button("Download evidence leads for manual verification",
+                       candidates.to_csv(index=False).encode("utf-8-sig"), "partwatch_pilot_leads.csv", "text/csv")
+    st.caption("Candidate observations are not added to the customer-search database. They may be outdated or region-specific.")
+
+with st.expander("V0.5: Customer discovery pilot (privacy-first)", expanded=False):
+    st.markdown("""
+    Use a five-interview trial with industrial spare-part distributors. Ask if the tool
+    helps, whether they would use it again, and which **hypothetical** monthly price
+    they might consider. Price interest is not a purchase commitment.
+    Do not enter emails, real names, confidential SKU lists, or customer information
+    on this public demo. Collect optional, anonymous feedback offline with consent.
+    The website does not accept or store survey submissions.
+    """)
+    template=blank_feedback()
+    st.download_button("Download anonymous customer interview template",
+                       template.to_csv(index=False).encode("utf-8-sig"),
+                       "partwatch_customer_interviews_template.csv", "text/csv")
+    st.caption("Offline analysis: python pilot_cli.py --feedback anonymized_interviews.csv")
 
 st.divider()
 st.caption("Demo statuses are synthetic. A source URL alone is not verification; production records require permission to use data and documented review. No automatic crawling or monitoring is performed.")
