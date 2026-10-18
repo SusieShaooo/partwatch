@@ -1,0 +1,4 @@
+brand,part_number,plm_code,status,effective_date,source_url,verified_at,verification_status
+DEMOCO,DEMO-PLC-100,DEMO,Discontinued (demo),,,,demo
+DEMOCO,DEMO-DRIVE-200,DEMO,Phase-out (demo),,,,demo
+DEMOCO,DEMO-HMI-300,DEMO,Active (demo),,,,demo
