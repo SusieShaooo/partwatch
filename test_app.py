@@ -181,7 +181,7 @@ class PartWatchTests(unittest.TestCase):
         self.assertTrue(validate_publication(self.records, audit))
 
     def test_readonly_review_worksheets(self):
-        st = run_app("brand,part_number\\nOTHER,ABC123\\n")
+        st = run_app("brand,part_number\nOTHER,ABC123\n")
         labels = [call.args[0] for call in st.download_button.call_args_list]
         self.assertIn("Download manual review worksheet CSV", labels)
         self.assertIn("Download pending review worksheet", labels)
