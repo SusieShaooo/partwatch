@@ -11,12 +11,14 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 from lifecycle import load_records, match_parts, compare_snapshots, SNAPSHOT_COLUMNS
 from review import REVIEW_FIELDS, AUDIT_COLUMNS, review_queue, approve_review, validate_publication
+from quality import triage, summarize_matches, build_report
 
 ROOT = Path(__file__).resolve().parent
 
 def run_app(csv_text=None):
     st = MagicMock()
     st.expander.return_value = nullcontext()
+    st.slider.return_value = 180
     st.file_uploader.side_effect = [io.StringIO(csv_text) if csv_text is not None else None, None]
     st.multiselect.side_effect = lambda label, choices, default: default
     with patch.dict("sys.modules", {"streamlit": st}):
@@ -28,7 +30,7 @@ class PartWatchTests(unittest.TestCase):
         self.records = load_records()
 
     def test_syntax(self):
-        for filename in ("app.py", "lifecycle.py", "review.py", "review_cli.py"):
+        for filename in ("app.py", "lifecycle.py", "review.py", "review_cli.py", "quality.py"):
             ast.parse((ROOT / filename).read_text(encoding="utf-8"))
 
     def test_sample_csv(self):
@@ -185,6 +187,42 @@ class PartWatchTests(unittest.TestCase):
         labels = [call.args[0] for call in st.download_button.call_args_list]
         self.assertIn("Download manual review worksheet CSV", labels)
         self.assertIn("Download pending review worksheet", labels)
+
+    def test_freshness_demo_never_marked_verified(self):
+        priorities = triage(self.records, as_of="2026-10-18")
+        self.assertEqual(priorities["review_priority"].tolist(), ["Demo only"] * 3)
+
+    def test_review_due_buckets(self):
+        rows = self.records.iloc[[0]].copy()
+        rows.loc[rows.index[0], ["verification_status", "plm_code", "verified_at", "source_url"]] = [
+            "verified", "PM400", "2026-01-01", "https://example.com/evidence"]
+        self.assertEqual(triage(rows, as_of="2026-10-18").iloc[0]["review_priority"], "Review overdue")
+        self.assertEqual(triage(rows, as_of="2026-02-01").iloc[0]["review_priority"], "Fresh verified")
+        self.assertEqual(triage(rows, as_of="2026-06-01", review_interval_days=180).iloc[0]["review_priority"], "Review approaching")
+
+    def test_freshness_future_date_not_trusted(self):
+        rows = self.records.iloc[[0]].copy()
+        rows.loc[rows.index[0], ["verification_status", "plm_code", "verified_at", "source_url"]] = [
+            "verified", "PM300", "2026-12-01", "https://example.com"]
+        self.assertEqual(triage(rows, as_of="2026-10-18").iloc[0]["review_priority"], "Needs evidence")
+
+    def test_batch_coverage_duplicate_counts(self):
+        incoming = pd.DataFrame([{"brand":"DEMOCO","part_number":"DEMO-PLC-100"},
+                                 {"brand":" democo ","part_number":"demo-plc-100"},
+                                 {"brand":"OTHER","part_number":"UNKNOWN"}])
+        counts = summarize_matches(match_parts(incoming, self.records))
+        self.assertEqual((counts["rows"], counts["distinct_parts"], counts["duplicate_rows"],
+                          counts["unknown_rows"], counts["demo_rows"]), (3, 2, 1, 1, 2))
+
+    def test_report_provenance_and_ui_download(self):
+        result = match_parts(pd.DataFrame([{"brand": "OTHER", "part_number": "ABC"}]), self.records)
+        report = build_report(result, as_of="2026-10-18")
+        self.assertEqual(report.iloc[0]["review_priority"], "Needs evidence")
+        self.assertIn("not a live", report.iloc[0]["data_notice"])
+        st = run_app("brand,part_number\\nOTHER,ABC123\\n")
+        labels = [x.args[0] for x in st.download_button.call_args_list]
+        self.assertIn("Download provenance and freshness report", labels)
+        self.assertIn("Download review priority queue", labels)
 
     def test_app_no_upload(self):
         st = run_app()
