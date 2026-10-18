@@ -1,10 +1,12 @@
-# PartWatch V0.4
+# PartWatch V0.5
 
 Public prototype for industrial spare-part lifecycle lookups. Hosted demo: https://spareparts-lifecycle-demo.streamlit.app/
 
 **Important: All bundled product statuses are synthetic.** No live manufacturer lifecycle records, scheduled checks, alerts, or scraping are included. Unknown is not Active. This prototype is not ready for confidential customer inventory.
 
 ## Features
+- Five real Siemens model evidence **leads** held outside the production catalog pending actual human recheck and rights review
+- Anonymous five-interview template plus local-only evaluation and basic aggregate signals
 - One-part quick lookup without CSV, with strict input length limits
 - CSV upload (`brand,part_number`), up to 1,000 rows
 - Case/whitespace-insensitive matching; duplicates preserved
@@ -33,6 +35,44 @@ Public prototype for industrial spare-part lifecycle lookups. Hosted demo: https
 | verification_status | demo / verified / unverified |
 
 A record marked `verified` must have a source URL, review date, and non-demo, non-unknown PLM code. The app does **not** independently confirm that a link supports the claimed status: maintainers must verify it before committing any real record. Do not copy or redistribute manufacturer data unless usage rights permit it. The Siemens lifecycle document is linked only as general terminology reference, not as evidence for bundled demo records.
+
+## V0.5 real-model pilot: evidence is not verified data
+
+`pilot_candidates.csv` contains five **research leads** from Siemens Industry Mall product pages.
+The observed PLM labels originate from indexed page snapshots that may be old and jurisdiction-dependent.
+They are **not** current verified findings, not a manufacturer API feed, and not part of
+`lifecycle_records.csv`. We made no manufacturer-site automated requests as part of app operation.
+Every row is `Pending human recheck` and `Not reviewed` for data-use rights.
+
+Suggested pilot order: re-open the exact Siemens URL manually, confirm part-number match,
+region, product lifecycle wording and date, then assess what minimal factual information
+may lawfully be displayed. Obtain permission when appropriate. Use the V0.3 review CLI
+only after both human checks and an evidence note; inspect the catalog and public audit CSV diffs.
+Do **not** move candidates into the Verified catalog automatically.
+The static research-lead table does not imply Siemens endorsement.
+
+## V0.5 customer validation
+
+Recruit **five** target businesses using your own contacts and a permission-based invitation;
+do not harvest emails or send unsolicited bulk outreach. Ask them to test with synthetic or
+explicitly non-confidential part numbers. The public site has an anonymous CSV interview
+template with these columns:
+`participant_code,business_type,parts_checked,tasks_completed,useful_result,time_saved_estimate_minutes,biggest_problem,would_use_again,willingness_to_pay_usd_month,permission_to_share_anonymized`.
+
+Accepted price options: `0`, `29`, `49`, `99`, `unsure` (USD/month, hypothetical).
+Use anonymous codes, not names, email addresses, or private company information.
+Do not commit feedback CSVs to the public repository. Store them only on a secured
+local device after getting consent, and remove them when no longer needed.
+
+Run `python pilot_cli.py --feedback anonymized_interviews.csv` locally to see aggregate counts
+of successful tasks, repeat-use intentions and stated willingness to pay. Stated willingness to pay
+is **not** payment or a purchase agreement. The tool performs no data submission and stores no
+customer response on Streamlit or GitHub. Keep original responses private.
+
+**Go/no-go signals, not promises:** at least 3 of 5 participants complete the test,
+at least 3 report usefulness, and at least 1 expresses paid intent. Even if all pass,
+commercial rollout requires lawful continuing data access, privacy review and support readiness.
+Actual pilot interviews and official manual confirmations have **not yet occurred**.
 
 ## V0.4 data-quality dashboard and CSV reports
 
