@@ -1,4 +1,4 @@
-# PartWatch V0.3
+# PartWatch V0.4
 
 Public prototype for industrial spare-part lifecycle lookups. Hosted demo: https://spareparts-lifecycle-demo.streamlit.app/
 
@@ -13,6 +13,9 @@ Public prototype for industrial spare-part lifecycle lookups. Hosted demo: https
 - Download catalog snapshot; upload a previous catalog snapshot to inspect changes and export the comparison
 - Download read-only manual review worksheets for unmatched parts
 - Offline operator-gated review and audit log; no public write endpoint
+- Human-review freshness dashboard (30-365 day adjustable interval) and CSV priority export
+- Upload coverage counters: matched demo, verified, unknown, distinct parts, duplicates
+- Per-part provenance and freshness report with explicit static-data disclaimer
 
 ## Data schema
 `lifecycle_records.csv` fields:
@@ -29,6 +32,20 @@ Public prototype for industrial spare-part lifecycle lookups. Hosted demo: https
 | verification_status | demo / verified / unverified |
 
 A record marked `verified` must have a source URL, review date, and non-demo, non-unknown PLM code. The app does **not** independently confirm that a link supports the claimed status: maintainers must verify it before committing any real record. Do not copy or redistribute manufacturer data unless usage rights permit it. The Siemens lifecycle document is linked only as general terminology reference, not as evidence for bundled demo records.
+
+## V0.4 data-quality dashboard and CSV reports
+
+The evidence-quality panel classifies catalog records as `Demo only`, `Needs evidence`,
+`Fresh verified`, `Review approaching`, or `Review overdue`. The default review interval is
+180 days, with a 30-day warning window; these are operational reminders, **not** product
+lifecycle claims. The reviewer must recheck the official evidence to establish a new verification
+date; merely opening the dashboard never renews that date.
+
+The batch lookup includes counts for distinct parts, repeated rows, unverified/unknown,
+and demo matches, plus a provenance/freshness CSV report with a prominent non-live notice.
+Only filtered rows appear in the report export. No customer data is stored to disk by the
+application code; temporary Streamlit server processing still occurs, so use **non-confidential**
+test files only. The public UI continues to be read-only.
 
 ## Manual snapshot comparison
 
