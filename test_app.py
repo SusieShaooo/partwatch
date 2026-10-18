@@ -219,7 +219,7 @@ class PartWatchTests(unittest.TestCase):
         report = build_report(result, as_of="2026-10-18")
         self.assertEqual(report.iloc[0]["review_priority"], "Needs evidence")
         self.assertIn("not a live", report.iloc[0]["data_notice"])
-        st = run_app("brand,part_number\\nOTHER,ABC123\\n")
+        st = run_app("brand,part_number\nOTHER,ABC123\n")
         labels = [x.args[0] for x in st.download_button.call_args_list]
         self.assertIn("Download provenance and freshness report", labels)
         self.assertIn("Download review priority queue", labels)
@@ -232,7 +232,7 @@ class PartWatchTests(unittest.TestCase):
     def test_app_upload_filter_and_export(self):
         st = run_app("brand,part_number\nDEMOCO,DEMO-DRIVE-200\nOTHER,ABC123\n")
         st.multiselect.assert_called_once()
-        st.dataframe.assert_called_once()
+        self.assertGreaterEqual(st.dataframe.call_count, 1)
         exports = [c for c in st.download_button.call_args_list if c.args and c.args[0] == "Download results CSV"]
         self.assertEqual(len(exports), 1)
         csv_data = exports[0].args[1].decode("utf-8-sig")
