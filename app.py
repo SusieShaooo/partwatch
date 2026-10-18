@@ -22,6 +22,18 @@ with st.expander("See sample CSV format", expanded=False):
     st.code(sample, language="csv")
     st.download_button("Download sample CSV", sample, "sample_parts.csv", "text/csv")
 
+with st.expander("Quick lookup: one part number (no CSV required)", expanded=False):
+    quick_brand = st.text_input("Manufacturer / brand", key="quick_brand")
+    quick_part = st.text_input("Part number", key="quick_part")
+    if isinstance(quick_brand, str) and isinstance(quick_part, str) and quick_brand.strip() and quick_part.strip():
+        if len(quick_brand) > 100 or len(quick_part) > 150:
+            st.error("Brand or part number is too long")
+        else:
+            quick = match_parts(pd.DataFrame([{"brand": quick_brand, "part_number": quick_part}]), records)
+            st.dataframe(quick, use_container_width=True, hide_index=True,
+                         column_config={"source_url": st.column_config.LinkColumn("Evidence URL")})
+            st.caption("Static catalog only. Demo is synthetic; Unknown is not Active. Check source and last verification date.")
+
 upload = st.file_uploader("Upload a CSV with brand and part_number columns", type=["csv"])
 if upload is not None:
     try:
