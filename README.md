@@ -10,6 +10,7 @@ Public prototype for industrial spare-part lifecycle lookups. Hosted demo: https
 - Lifecycle status filtering and export with source/effective/verification dates
 - Evidence URL column rendered as links when a legitimate, reviewed record is added
 - Explicit distinction between demo, verified, and unverified statuses
+- Download catalog snapshot; upload a previous catalog snapshot to inspect changes and export the comparison
 
 ## Data schema
 `lifecycle_records.csv` fields:
@@ -26,6 +27,10 @@ Public prototype for industrial spare-part lifecycle lookups. Hosted demo: https
 | verification_status | demo / verified / unverified |
 
 A record marked `verified` must have a source URL, review date, and non-demo, non-unknown PLM code. The app does **not** independently confirm that a link supports the claimed status: maintainers must verify it before committing any real record. Do not copy or redistribute manufacturer data unless usage rights permit it. The Siemens lifecycle document is linked only as general terminology reference, not as evidence for bundled demo records.
+
+## Manual snapshot comparison
+
+Download the current catalog snapshot from the Streamlit page, then upload an older snapshot with the same columns: `brand,part_number,plm_code,status,verified_at,verification_status`. The tool compares by normalized brand + part number and labels rows as added, removed, unchanged or different. **Removed from snapshot does not mean discontinued.** Demo/unverified changes are never labeled manufacturer-confirmed. Even a difference between two verified records is a candidate for human evidence review, not an automated official alert. No file storage, scheduling, or background crawling is performed.
 
 ## Run locally
 
