@@ -12,6 +12,7 @@ import pandas as pd
 from lifecycle import load_records, match_parts, compare_snapshots, SNAPSHOT_COLUMNS
 from review import REVIEW_FIELDS, AUDIT_COLUMNS, review_queue, approve_review, validate_publication
 from quality import triage, summarize_matches, build_report
+from pilot import load_candidates, blank_feedback, validate_feedback, feedback_summary, FEEDBACK_COLS
 
 ROOT = Path(__file__).resolve().parent
 
@@ -32,7 +33,7 @@ class PartWatchTests(unittest.TestCase):
         self.records = load_records()
 
     def test_syntax(self):
-        for filename in ("app.py", "lifecycle.py", "review.py", "review_cli.py", "quality.py"):
+        for filename in ("app.py", "lifecycle.py", "review.py", "review_cli.py", "quality.py", "pilot.py", "pilot_cli.py"):
             ast.parse((ROOT / filename).read_text(encoding="utf-8"))
 
     def test_sample_csv(self):
@@ -240,6 +241,57 @@ class PartWatchTests(unittest.TestCase):
     def test_quick_lookup_limits_size(self):
         st = run_app(quick_brand="X" * 101, quick_part="ABC")
         self.assertTrue(any("too long" in call.args[0] for call in st.error.call_args_list))
+
+    def test_pilot_evidence_never_published_as_verified(self):
+        leads=load_candidates()
+        self.assertGreaterEqual(len(leads), 3)
+        self.assertTrue(leads["manual_review_state"].eq("Pending human recheck").all())
+        self.assertTrue(leads["usage_rights_review"].eq("Not reviewed").all())
+        self.assertEqual(int(self.records["verification_status"].eq("verified").sum()),0)
+
+    def test_pilot_candidate_bad_source_rejected(self):
+        leads=load_candidates()
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/"leads.csv"
+            leads.loc[0,"source_url"]="https://unrelated.example.net"
+            leads.to_csv(path,index=False)
+            with self.assertRaisesRegex(ValueError,"Siemens"):
+                load_candidates(path)
+
+    def valid_feedback(self):
+        return pd.DataFrame([{"participant_code":"pilot-01","business_type":"distributor",
+            "parts_checked":"12","tasks_completed":"1","useful_result":"yes",
+            "time_saved_estimate_minutes":"5","biggest_problem":"limited source coverage",
+            "would_use_again":"yes","willingness_to_pay_usd_month":"29",
+            "permission_to_share_anonymized":"no"}])
+
+    def test_customer_feedback_aggregation(self):
+        sheet=validate_feedback(self.valid_feedback())
+        summary=feedback_summary(sheet)
+        self.assertEqual((summary["interviews"],summary["paid_intent"],summary["eligible_to_share"]),(1,1,0))
+        self.assertEqual(list(blank_feedback().columns),FEEDBACK_COLS)
+
+    def test_customer_feedback_rejects_personal_identifiers(self):
+        sheet=self.valid_feedback()
+        sheet.loc[0,"participant_code"]="person@example.com"
+        with self.assertRaisesRegex(ValueError,"anonymous"):
+            validate_feedback(sheet)
+
+    def test_customer_feedback_rejects_inflated_or_invalid_data(self):
+        sheet=self.valid_feedback()
+        sheet.loc[0,"parts_checked"]="-3"
+        with self.assertRaisesRegex(ValueError,"nonnegative"):
+            validate_feedback(sheet)
+        sheet=self.valid_feedback()
+        sheet.loc[0,"willingness_to_pay_usd_month"]="9999"
+        with self.assertRaisesRegex(ValueError,"price"):
+            validate_feedback(sheet)
+
+    def test_pilot_ui_downloads_and_read_only(self):
+        st=run_app()
+        labels=[x.args[0] for x in st.download_button.call_args_list]
+        self.assertIn("Download evidence leads for manual verification",labels)
+        self.assertIn("Download anonymous customer interview template",labels)
 
     def test_app_no_upload(self):
         st = run_app()
