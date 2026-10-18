@@ -1,12 +1,13 @@
-"""PartWatch V0.2: provenance-aware lifecycle CSV checker."""
+"""PartWatch V0.3: public, read-only lifecycle checker and review worksheet."""
 import pandas as pd
 import streamlit as st
 from lifecycle import load_records, match_parts, compare_snapshots, SNAPSHOT_COLUMNS
+from review import review_queue
 
 st.set_page_config(page_title="PartWatch | Lifecycle Checker", page_icon="🔎", layout="wide")
 st.title("PartWatch")
-st.caption("Industrial parts lifecycle intelligence · V0.2")
-st.info("Demo data only. No manufacturer records or live lifecycle status are included. Unknown means not verified, NOT active.")
+st.caption("Industrial parts lifecycle intelligence · V0.3")
+st.info("Current catalog contains DEMO data only. No manufacturer records or live lifecycle status are included. Unknown means not verified, NOT active.")
 st.warning("Public prototype: do not upload confidential customer or inventory data. Files are processed on the hosting server.")
 st.markdown("Lifecycle terminology reference: [Siemens official documentation](https://support.industry.siemens.com/cs/attachments/109983787/109983787_ProductLifeCycle_SINEC_NMS_DOC_V10_en.pdf). This is a general reference, not evidence for demo records.")
 
@@ -29,6 +30,10 @@ if upload is not None:
         filtered = result[result["status"].isin(selected)]
         st.dataframe(filtered, use_container_width=True, hide_index=True, column_config={"source_url": st.column_config.LinkColumn("Official source / evidence")})
         st.download_button("Download results CSV", filtered.to_csv(index=False).encode("utf-8-sig"), "partwatch_results.csv", "text/csv")
+        unknown = result.loc[result["plm_code"] == "UNKNOWN", ["brand", "part_number"]]
+        worksheet = review_queue(records, unknown)
+        st.download_button("Download manual review worksheet CSV", worksheet.to_csv(index=False).encode("utf-8-sig"), "partwatch_review_worksheet.csv", "text/csv")
+        st.caption("Review worksheet contains unmatched input and pending non-demo catalog records. It does NOT approve or publish data. Keep submitted parts non-confidential.")
     except (ValueError, pd.errors.ParserError, UnicodeDecodeError, pd.errors.EmptyDataError) as exc:
         st.error(f"Could not process CSV: {exc}")
 
@@ -46,6 +51,19 @@ with st.expander("Compare two lifecycle snapshots (manual, not live monitoring)"
             st.download_button("Download snapshot comparison CSV", changes.to_csv(index=False).encode("utf-8-sig"), "partwatch_snapshot_comparison.csv", "text/csv")
         except (ValueError, pd.errors.ParserError, UnicodeDecodeError, pd.errors.EmptyDataError) as exc:
             st.error(f"Could not compare snapshots: {exc}")
+
+with st.expander("Review workflow and evidence checklist (read-only)", expanded=False):
+    pending = review_queue(records)
+    st.metric("Non-demo records to review", len(pending))
+    st.download_button("Download pending review worksheet", pending.to_csv(index=False).encode("utf-8-sig"), "partwatch_pending_review.csv", "text/csv")
+    st.markdown("""
+    **Human review process (repo maintainers only):**
+    1. Check the exact manufacturer part number and applicable region against an official page.
+    2. Confirm lifecycle code, effective date (if available), and the date actually reviewed.
+    3. Write an evidence note and determine whether linking and summarizing the facts is permitted.
+    4. Use the local `review_cli.py` with both confirmations, then inspect and commit the catalog **and** audit log changes through an approved repository review.
+    This public site cannot change verified records, and a link alone is not proof.
+    """)
 
 st.divider()
 st.caption("Demo statuses are synthetic. A source URL alone is not verification; production records require permission to use data and documented review. No automatic crawling or monitoring is performed.")
