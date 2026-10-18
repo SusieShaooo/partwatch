@@ -5,6 +5,7 @@ Public prototype for industrial spare-part lifecycle lookups. Hosted demo: https
 **Important: All bundled product statuses are synthetic.** No live manufacturer lifecycle records, scheduled checks, alerts, or scraping are included. Unknown is not Active. This prototype is not ready for confidential customer inventory.
 
 ## Features
+- One-part quick lookup without CSV, with strict input length limits
 - CSV upload (`brand,part_number`), up to 1,000 rows
 - Case/whitespace-insensitive matching; duplicates preserved
 - Lifecycle status filtering and export with source/effective/verification dates
