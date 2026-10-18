@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pandas as pd
 from lifecycle import load_records, match_parts, compare_snapshots, SNAPSHOT_COLUMNS
+from review import REVIEW_FIELDS, AUDIT_COLUMNS, review_queue, approve_review, validate_publication
 
 ROOT = Path(__file__).resolve().parent
 
@@ -27,7 +28,7 @@ class PartWatchTests(unittest.TestCase):
         self.records = load_records()
 
     def test_syntax(self):
-        for filename in ("app.py", "lifecycle.py"):
+        for filename in ("app.py", "lifecycle.py", "review.py", "review_cli.py"):
             ast.parse((ROOT / filename).read_text(encoding="utf-8"))
 
     def test_sample_csv(self):
@@ -127,6 +128,63 @@ class PartWatchTests(unittest.TestCase):
         labels = [call.args[0] for call in st.download_button.call_args_list]
         self.assertIn("Download current catalog snapshot", labels)
         self.assertEqual(st.file_uploader.call_count, 2)
+
+    def valid_proposal(self):
+        return pd.DataFrame([{"brand": "SIEMENS", "part_number": "6TEST-001",
+            "plm_code": "PM400", "status": "Phase-out reported",
+            "effective_date": "", "source_url": "https://example.com/product/6TEST-001",
+            "verified_at": "2026-01-01",
+            "evidence_note": "Manually compare official details and exact part number.",
+            "rights_basis": "official_link_and_factual_summary"}])
+
+    def test_review_queue_deduplicates_and_excludes_demo(self):
+        incoming = pd.DataFrame([{"brand": " siemens ", "part_number": " abc "},
+                                 {"brand": "SIEMENS", "part_number": "ABC"}])
+        queue = review_queue(self.records, incoming)
+        self.assertEqual(len(queue), 1)
+        self.assertEqual(queue.iloc[0]["part_number"], "ABC")
+        self.assertEqual(list(queue.columns), REVIEW_FIELDS)
+
+    def test_approval_requires_confirmation(self):
+        with self.assertRaisesRegex(ValueError, "confirmations"):
+            approve_review(self.records, pd.DataFrame(columns=AUDIT_COLUMNS),
+                self.valid_proposal(), "reviewer-01", source_reviewed=True)
+
+    def test_approved_record_has_matching_audit(self):
+        catalog, log = approve_review(self.records, pd.DataFrame(columns=AUDIT_COLUMNS),
+            self.valid_proposal(), "reviewer-01", source_reviewed=True, rights_checked=True)
+        self.assertEqual(len(catalog), len(self.records) + 1)
+        self.assertEqual(log.iloc[0]["reviewer_id"], "reviewer-01")
+        self.assertTrue(validate_publication(catalog, log))
+        with self.assertRaisesRegex(ValueError, "matching review audit"):
+            validate_publication(catalog, pd.DataFrame(columns=AUDIT_COLUMNS))
+
+    def test_demo_promotion_blocked(self):
+        proposal = self.valid_proposal()
+        proposal.loc[0, ["brand", "part_number"]] = ["DEMOCO", "DEMO-PLC-100"]
+        with self.assertRaisesRegex(ValueError, "Demo"):
+            approve_review(self.records, pd.DataFrame(columns=AUDIT_COLUMNS),
+                proposal, "reviewer-01", source_reviewed=True, rights_checked=True)
+
+    def test_evidence_and_rights_must_be_present(self):
+        for field, value, error in [("evidence_note", "short", "evidence note"),
+                                     ("rights_basis", "unknown", "rights basis"),
+                                     ("source_url", "http://example.com", "HTTPS")]:
+            proposal = self.valid_proposal()
+            proposal.loc[0, field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, error):
+                approve_review(self.records, pd.DataFrame(columns=AUDIT_COLUMNS),
+                    proposal, "reviewer-01", source_reviewed=True, rights_checked=True)
+
+    def test_public_catalog_matches_audit(self):
+        audit = pd.read_csv(ROOT / "review_audit.csv", dtype=str, keep_default_na=False)
+        self.assertTrue(validate_publication(self.records, audit))
+
+    def test_readonly_review_worksheets(self):
+        st = run_app("brand,part_number\\nOTHER,ABC123\\n")
+        labels = [call.args[0] for call in st.download_button.call_args_list]
+        self.assertIn("Download manual review worksheet CSV", labels)
+        self.assertIn("Download pending review worksheet", labels)
 
     def test_app_no_upload(self):
         st = run_app()
