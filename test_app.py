@@ -9,14 +9,14 @@ from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pandas as pd
-from lifecycle import load_records, match_parts
+from lifecycle import load_records, match_parts, compare_snapshots, SNAPSHOT_COLUMNS
 
 ROOT = Path(__file__).resolve().parent
 
 def run_app(csv_text=None):
     st = MagicMock()
     st.expander.return_value = nullcontext()
-    st.file_uploader.return_value = io.StringIO(csv_text) if csv_text is not None else None
+    st.file_uploader.side_effect = [io.StringIO(csv_text) if csv_text is not None else None, None]
     st.multiselect.side_effect = lambda label, choices, default: default
     with patch.dict("sys.modules", {"streamlit": st}):
         runpy.run_path(str(ROOT / "app.py"))
@@ -87,6 +87,46 @@ class PartWatchTests(unittest.TestCase):
             modified.to_csv(path, index=False)
             with self.assertRaisesRegex(ValueError, "HTTPS"):
                 load_records(path)
+
+    def test_snapshot_same_records_unchanged(self):
+        before = self.records[SNAPSHOT_COLUMNS].copy()
+        comparison = compare_snapshots(before, before)
+        self.assertTrue((comparison["change"] == "Unchanged").all())
+
+    def test_snapshot_demo_change_never_called_verified(self):
+        before = self.records[SNAPSHOT_COLUMNS].copy()
+        after = before.copy()
+        after.loc[0, "status"] = "Changed demo lifecycle"
+        result = compare_snapshots(before, after)
+        self.assertEqual(result.loc[0, "change"], "Status differs (demo / unverified)")
+
+    def test_snapshot_missing_row_not_discontinued(self):
+        before = self.records[SNAPSHOT_COLUMNS].copy()
+        after = before.iloc[1:].copy()
+        result = compare_snapshots(before, after)
+        label = result.loc[result["part_number"] == "DEMO-PLC-100", "change"].iloc[0]
+        self.assertIn("not evidence of discontinuation", label)
+
+    def test_snapshot_duplicate_and_bad_schema_rejected(self):
+        before = self.records[SNAPSHOT_COLUMNS].copy()
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            compare_snapshots(pd.concat([before, before.iloc[[0]]]), before)
+        with self.assertRaisesRegex(ValueError, "missing columns"):
+            compare_snapshots(pd.DataFrame({"sku": ["x"]}), before)
+
+    def test_snapshot_verified_change_requires_two_verified_records(self):
+        before = self.records[SNAPSHOT_COLUMNS].copy()
+        after = before.copy()
+        before.loc[0, ["plm_code", "verification_status"]] = ["PM300", "verified"]
+        after.loc[0, ["plm_code", "verification_status"]] = ["PM400", "verified"]
+        result = compare_snapshots(before, after)
+        self.assertEqual(result.loc[0, "change"], "Verified-record status differs (review evidence)")
+
+    def test_snapshot_ui_download_and_empty_compare_upload(self):
+        st = run_app()
+        labels = [call.args[0] for call in st.download_button.call_args_list]
+        self.assertIn("Download current catalog snapshot", labels)
+        self.assertEqual(st.file_uploader.call_count, 2)
 
     def test_app_no_upload(self):
         st = run_app()
