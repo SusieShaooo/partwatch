@@ -1,2 +1,3 @@
 brand,part_number,user_observed_plm_code,user_observed_at,source_url,source_region,historical_effective_date,historical_page_status,evidence_assessment,usage_rights_review,catalog_publication
 SIEMENS,6SL3000-0CE21-6AA0,PM410,2026-10-18,https://mall.industry.siemens.com/mall/en/it/Catalog/Product/6SL3000-0CE21-6AA0,Italy,2019-10-01,PM410 Product cancellation,User-reported matching status corroborated by historical Siemens page; not independently live-checked,Not reviewed,Not approved
+SIEMENS,6SL3000-0DE31-2AA1,PM400,2026-10-18,https://mall.industry.siemens.com/mall/en/en/Catalog/Product/6SL3000-0DE31-2AA1,WW,2024-10-01,PM400 Announcement of product phase-out,User-reported PM400; official page historical evidence only; permissions pending,Not reviewed,Not approved
